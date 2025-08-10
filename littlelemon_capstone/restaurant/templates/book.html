@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<section>
+  <article>
+    <h1>Make a reservation</h1>
+    <div class="row">
+      <div class="column">
+        <form method="POST" id="form">
+          {% csrf_token %}
+          <p>
+            <label for="first_name">Name:</label>
+            <input type="text" placeholder="Your Name" maxlength="200" required id="first_name" name="name">
+          </p>
+
+          <p>
+            <label for="reservation_date">Reservation date:</label>
+            <input type="date" id="reservation_date" name="booking_date" required value="{{ today }}">
+          </p>
+
+          <p>
+            <label for="no_of_guests">Number of Guests:</label>
+            <input type="number" id="no_of_guests" name="no_of_guests" min="1" required>
+          </p>
+
+          <p>
+            <label for="reservation_slot">Reservation time:</label>
+            <select id="reservation_slot" name="reservation_slot" required>
+              <option value="" disabled selected>Select time</option>
+              <option value="10 AM">10 AM</option>
+              <option value="11 AM">11 AM</option>
+              <option value="12 PM">12 PM</option>
+              <option value="1 PM">1 PM</option>
+              <option value="2 PM">2 PM</option>
+              <option value="3 PM">3 PM</option>
+              <option value="4 PM">4 PM</option>
+              <option value="5 PM">5 PM</option>
+              <option value="6 PM">6 PM</option>
+              <option value="7 PM">7 PM</option>
+              <option value="8 PM">8 PM</option>
+            </select>
+          </p>
+
+          <button type="button" id="button">Reserve</button>
+        </form>
+      </div>
+
+      <div class="column">
+        <h2>Bookings For <span id="today"></span></h2>
+        <div id="bookings">
+          <!-- Bookings will be listed here -->
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
+
+<script>
+function getBookings(date) {
+  fetch('/bookings/?date=' + date)
+    .then(response => response.json())
+    .then(data => {
+      const timeSelect = document.getElementById('reservation_slot');
+
+      // Use available_times from API or fallback list
+      const allTimes = ["10 AM", "11 AM", "12 PM", "1 PM", "2 PM", "3 PM", "4 PM", "5 PM", "6 PM", "7 PM", "8 PM"];
+      const availableTimes = data.available_times || allTimes;
+
+      timeSelect.innerHTML = '<option value="" disabled selected>Select time</option>';
+      availableTimes.forEach(time => {
+        const option = document.createElement('option');
+        option.value = time;
+        option.text = time;
+        timeSelect.appendChild(option);
+      });
+
+      document.getElementById('today').textContent = date;
+
+      const bookingsDiv = document.getElementById('bookings');
+      bookingsDiv.innerHTML = '';
+
+      if (data.length > 0) {
+        const list = document.createElement('ul');
+        data.forEach(booking => {
+          const item = document.createElement('li');
+          item.textContent = `${booking.name} at ${booking.reservation_slot} for ${booking.no_of_guests} guest(s)`;
+          list.appendChild(item);
+        });
+        bookingsDiv.appendChild(list);
+      } else {
+        bookingsDiv.innerHTML = '<p>No bookings for this date.</p>';
+      }
+    })
+    .catch(error => {
+      console.error('Fetch error:', error);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const dateField = document.getElementById('reservation_date');
+  const formButton = document.getElementById('button');
+
+  if (dateField) {
+    getBookings(dateField.value);
+    dateField.addEventListener('change', function () {
+      getBookings(this.value);
+    });
+  }
+
+  if (formButton) {
+    formButton.addEventListener('click', function () {
+      const name = document.getElementById('first_name').value;
+      const date = document.getElementById('reservation_date').value;
+      const time = document.getElementById('reservation_slot').value;
+      const guests = document.getElementById('no_of_guests').value;
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+      if (!name || !date || !time || !guests) {
+        alert("Please fill all fields.");
+        return;
+      }
+
+      fetch('/bookings/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRFToken': csrfToken
+        },
+        body: new URLSearchParams({
+          name: name,
+          booking_date: date,
+          reservation_slot: time,
+          no_of_guests: guests
+        })
+      })
+      .then(response => response.json().then(data => {
+        if (!response.ok) {
+          alert("Error: " + JSON.stringify(data));
+        } else {
+          alert("Reservation successful!");
+          document.getElementById('form').reset();
+          getBookings(date);
+        }
+      }))
+      .catch(error => {
+        console.error('Error submitting form:', error);
+        alert("Something went wrong.");
+      });
+    });
+  }
+});
+</script>
+{% endblock %}
